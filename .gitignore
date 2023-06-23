@@ -1,0 +1,8 @@
+# Dependency directories
+node_modules/
+
+# Just ignore all the JavaScript 🙂
+*.js
+
+# Except for the example written in JavaScript 😐
+!examples/example-node-express/*.js

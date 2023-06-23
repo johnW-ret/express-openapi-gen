@@ -1,0 +1,20 @@
+{
+  "name": "example-node-express",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "start": "node index.js"
+  },
+  "dependencies": {
+    "cookie-parser": "~1.4.4",
+    "debug": "~2.6.9",
+    "express": "~4.16.1",
+    "morgan": "~1.9.1",
+    "openapi-gen": "file:../../src",
+    "swagger-ui-express": "^4.6.3"
+  },
+  "devDependencies": {
+    "@types/express": "^4.17.17"
+  }
+}

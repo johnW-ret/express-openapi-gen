@@ -1,0 +1,21 @@
+{
+  "name": "example-node-express-ts",
+  "main": "index.js",
+  "type": "module",
+  "scripts": {
+    "start": "npm run build && ts-node index.js",
+    "build": "tsc --build",
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "dependencies": {
+    "express": "^4.18.2",
+    "openapi-gen": "file:../../src",
+    "swagger-ui-express": "^4.6.3",
+    "typescript": "^5.1.3"
+  },
+  "devDependencies": {
+    "@types/express": "^4.17.17",
+    "@types/swagger-ui-express": "^4.1.3",
+    "ts-node": "^10.9.1"
+  }
+}
