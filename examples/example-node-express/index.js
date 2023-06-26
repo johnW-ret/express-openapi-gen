@@ -38,13 +38,3 @@ app.use('/api-docs', swaggerUi.serve, swaggerUi.setup(swaggerDocument));
 app.use(express.static("swagger"))
 
 app.listen(80);
-
-// express()
-//     .get("/banana", () => "banana")
-//     .use("/api",
-//         express()
-//             .get("/snake", () => "snake")
-//             .get("/carrot", () => "carrot"))
-//     .use('/api-docs', swaggerUi.serve, swaggerUi.setup(swaggerDocument))
-//     .use(express.static("swagger"))
-//     .listen(80);
