@@ -56,7 +56,7 @@ export const generateSwaggerDoc = function (entryPoint?: string) {
         {
             moduleResolution: ts.ModuleResolutionKind.NodeNext,
             target: ts.ScriptTarget.ESNext,
-            module: ts.ModuleKind.ES2022,
+            module: ts.ModuleKind.NodeNext,
             allowJs: true,
             checkJs: true
         }
