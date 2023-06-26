@@ -1,7 +1,7 @@
 import ts from 'typescript';
 
 type Router = { node: ts.Node, route: string, routers: Router[], routes: Method[] };
-type MethodKind = 'get' | 'put' | 'post' | 'delete';
+type MethodKind = 'get' | 'post' | 'put' | 'delete' | 'patch' | 'options' | 'head';
 // replace with express method?
 type Method = { method: MethodKind; route: string; reqType: string; };
 
@@ -157,7 +157,13 @@ export const generateSwaggerDoc = function (entryPoints?: string[]) {
                         });
                         break;
 
-                    case "get":
+                    case 'get':
+                    case 'post':
+                    case 'put':
+                    case 'delete':
+                    case 'patch':
+                    case 'options':
+                    case 'head':
                         let [route, handler] = node.arguments;
 
                         if (!ts.isFunctionLike(handler))
@@ -181,7 +187,7 @@ export const generateSwaggerDoc = function (entryPoints?: string[]) {
                         router = getRootCallExpression(router);
 
                         getRouter(express, router)?.routes.push({
-                            method: "get",
+                            method: methodType,
                             route: route.getText()
                                 .slice(1, -1),
                             reqType: reqTypeName

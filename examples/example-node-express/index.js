@@ -33,6 +33,15 @@ api.get("/carrot",
     res.send("carrot");
 });
 
+api.use("/methods", express.Router()
+    .post("/post", (req, res) => { res.send("🙂") })    
+    .put("/put", (req, res) => { res.send("🙂") })    
+    .delete("/delete", (req, res) => { res.send("🙂") })    
+    .patch("/patch", (req, res) => { res.send("🙂") })    
+    .options("/options", (req, res) => { res.send("🙂") })    
+    .head("/head", (req, res) => { res.send("🙂") })    
+);
+
 api.use("/fruit", fruitRouter);
 
 const swaggerDocument = generateSwaggerDoc();

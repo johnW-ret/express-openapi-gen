@@ -23,7 +23,16 @@ api.get("/carrot",
     res.send("carrot");
 });
 
-const swaggerDocument = generateSwaggerDoc("index.ts");
+api.use("/methods", express.Router()
+    .post("/post", (req, res) => { res.send("🙂") })    
+    .put("/put", (req, res) => { res.send("🙂") })    
+    .delete("/delete", (req, res) => { res.send("🙂") })    
+    .patch("/patch", (req, res) => { res.send("🙂") })    
+    .options("/options", (req, res) => { res.send("🙂") })    
+    .head("/head", (req, res) => { res.send("🙂") })    
+);
+
+const swaggerDocument = generateSwaggerDoc();
 
 app.use('/api-docs', swaggerUi.serve, swaggerUi.setup(swaggerDocument));
 app.use(express.static("swagger"))

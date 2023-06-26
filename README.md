@@ -52,7 +52,6 @@ See [examples](/examples) for more detailed examples.
 - No support for tags, descriptions, or additional metadata. This behavior will ideally change in a future version, though you can merge the generated schema with your own descriptive data.
 
 ## Todo
-- Only recognizes `get` endpoints (add support for all HTTP method types)
 - Types referenced are not added to the definition `schema` (auto-generate `schema` from involved types)
 
 ---
