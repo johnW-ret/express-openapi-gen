@@ -1,7 +1,7 @@
 // @ts-check
 
 import express from 'express';
-import { generateSwaggerDoc } from 'openapi-gen';
+import { generateSwaggerDoc } from 'express-openapi-gen';
 import swaggerUi from 'swagger-ui-express';
    
 const app = express();
