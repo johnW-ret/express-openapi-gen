@@ -3,6 +3,7 @@
 import express from 'express';
 import { generateSwaggerDoc } from 'express-openapi-gen';
 import swaggerUi from 'swagger-ui-express';
+import { fruitRouter } from './fruit.js';
    
 const app = express();
 const api = express.Router();
@@ -31,6 +32,8 @@ api.get("/carrot",
 (req, res) => {
     res.send("carrot");
 });
+
+api.use("/fruit", fruitRouter);
 
 const swaggerDocument = generateSwaggerDoc();
 

@@ -17,17 +17,38 @@ const getRouter = function (root: Router, node: ts.Node) {
     }
 };
 
+function getDeclarationFromImportSpecifier(importNode: ts.ImportSpecifier, checker: ts.TypeChecker) {
+    const originalSymbol = checker.getSymbolAtLocation(importNode.name);
+
+    if (!originalSymbol)
+        return;
+
+    const symbol = checker.getAliasedSymbol(originalSymbol);
+    const declaration = symbol?.declarations?.[0];
+    return declaration;
+}
+
 function getRightHandSide(node: ts.Expression, checker: ts.TypeChecker): ts.Expression | undefined {
-    if (ts.isIdentifier(node)) {
-        const symbol = checker.getSymbolAtLocation(node);
-        if (symbol) {
-            const declarations = symbol.getDeclarations();
-            if (declarations) {
-                const declaration = declarations[0];
-                if (ts.isVariableDeclaration(declaration)) {
-                    return declaration.initializer;
-                }
-            }
+    if (!ts.isIdentifier(node))
+        return node;
+
+    const symbol = checker.getSymbolAtLocation(node);
+    if (!symbol)
+        return node;
+
+    const declarations = symbol.getDeclarations();
+    if (!declarations)
+        return node;
+
+    let declaration = declarations[0];
+    if (ts.isVariableDeclaration(declaration)) {
+        return declaration.initializer;
+    }
+    else if (ts.isImportSpecifier(declaration)) {
+        declaration = getDeclarationFromImportSpecifier(declaration, checker) ?? declaration;
+
+        if (declaration && ts.isVariableDeclaration(declaration)) {
+            return declaration.initializer;
         }
     }
 
@@ -47,11 +68,11 @@ function getRootCallExpression(node: ts.Expression): ts.Expression {
     return lastCallExpression ?? node;
 }
 
-export const generateSwaggerDoc = function (entryPoint?: string) {
-    entryPoint ??= process.argv[1];
+export const generateSwaggerDoc = function (entryPoints?: string[]) {
+    entryPoints ??= [process.argv[1]];
 
     const program = ts.createProgram({
-        rootNames: [entryPoint],
+        rootNames: entryPoints,
         options:
         {
             moduleResolution: ts.ModuleResolutionKind.NodeNext,
@@ -63,19 +84,21 @@ export const generateSwaggerDoc = function (entryPoint?: string) {
     });
 
     const checker = program.getTypeChecker();
-    const sourceFile = program.getSourceFile(entryPoint);
 
     let spec: any = {
         openapi: "3.0.3",
         paths: {}
     };
 
-    if (!sourceFile) {
-        console.error(`openapi-gen: Source file could not be loaded at ${entryPoint}`);
+    let nodes: { node: ts.Node, depth: string }[] = program.getSourceFiles()
+        .filter(sf => !sf.isDeclarationFile)
+        .map((sf) => { return { node: sf, depth: "" } });
+
+    if (nodes.length === 0) {
+        console.error(`express-openapi-gen: No source files could not be loaded from ${entryPoints}`);
         return spec;
     }
 
-    let nodes: { node: ts.Node, depth: string }[] = [{ node: sourceFile, depth: "" }];
     let express: Router | undefined;
 
     {
@@ -171,12 +194,12 @@ export const generateSwaggerDoc = function (entryPoint?: string) {
 
             // forEachChild methods skip small tokens like semicolons
             node.getChildren().reverse().forEach(n => nodes.push({ node: n, depth: depth + " " }));
-            // _node.forEachChild(n => nodes.push(n));
+            // node.forEachChild(n => nodes.push({ node: n, depth: depth + " " }));
         }
     }
 
     if (!express) {
-        console.error(`openapi-gen: Express could not be found in source file in ${entryPoint}`);
+        console.error(`express-openapi-gen: Express could not be found in source file in ${entryPoints}`);
         return spec;
     }
 

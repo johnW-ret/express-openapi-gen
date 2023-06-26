@@ -53,7 +53,6 @@ See [examples](/examples) for more detailed examples.
 
 ## Todo
 - Only recognizes `get` endpoints (add support for all HTTP method types)
-- Only recognizes routes in the single source file detected or passed (allow passing glob path of source files with routes or auto-detect)
 - Types referenced are not added to the definition `schema` (auto-generate `schema` from involved types)
 
 ---
