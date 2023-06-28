@@ -150,7 +150,15 @@ export const generateSwaggerDoc = function (entryPoints?: string[]) {
                     return;
 
                 if (methodType === "use") {
-                    let connectingRouter = getRightHandSide(node.arguments[1], checker);
+                    const routerArg = node.arguments.find(arg => {
+                        const type = checker.getTypeAtLocation(arg);
+
+                        return checker.typeToString(type) === "Router";    
+                    });
+                    if (!routerArg)
+                        return;
+                    
+                    let connectingRouter = getRightHandSide(routerArg, checker);
                     if (!connectingRouter)
                         return;
 
