@@ -3,7 +3,7 @@
 import express from 'express';
 import { generateSwaggerDoc } from 'express-openapi-gen';
 import swaggerUi from 'swagger-ui-express';
-import { fruitRouter } from './fruit.js';
+import { fruitRouter, chainedFruit } from './fruit.js';
    
 const app = express();
 
@@ -32,6 +32,8 @@ api.get("/carrot",
 (req, res) => {
     res.send("carrot");
 });
+
+api.get("/chained-fruit", chainedFruit);
 
 api.use("/methods", express.Router()
     .post("/post", (req, res) => { res.send("🙂") })    

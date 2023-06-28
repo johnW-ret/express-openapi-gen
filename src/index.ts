@@ -172,6 +172,8 @@ export const generateSwaggerDoc = function (entryPoints?: string[]) {
 
                 let [route, handler] = node.arguments;
 
+                handler = getRightHandSide(handler, checker) ?? handler;
+
                 if (!ts.isFunctionLike(handler))
                     return;
 
