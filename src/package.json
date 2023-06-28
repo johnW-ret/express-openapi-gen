@@ -1,6 +1,6 @@
 {
   "name": "express-openapi-gen",
-  "version": "0.0.2",
+  "version": "0.0.3",
   "description": "A syntax analyzer that will attempt to generate an OpenAPI definition from your express API code.",
   "type": "module",
   "main": "index.js",
@@ -9,6 +9,7 @@
     "build": "tsc --build",
     "test": "echo \"Error: no test specified\" && exit 1"
   },
+  "readme": "README.md",
   "homepage": "https://github.com/johnW-ret/express-openapi-gen#readme",
   "repository": {
     "type": "git",
