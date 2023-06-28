@@ -7,14 +7,14 @@ export const chainedFruit = (req, res) => {
 };
 
 fruitRouter.post("/banana",
-/**
- * @param {express.Request<{}, string, {count: number}>} req 
- */
-(req, res) => {
-    res.send([...Array(req.body.count)].map(_ => "🍌").join(''));
-});
+    /**
+     * @param {express.Request<{}, string, {count: number}>} req 
+     */
+    (req, res) => {
+        res.send([...Array(req.body.count)].map(_ => "🍌").join(''));
+    });
 
 fruitRouter.get("/orange",
-(req, res) => {
-    res.send("🍊");
-});
+    (req, res) => {
+        res.send("🍊");
+    });

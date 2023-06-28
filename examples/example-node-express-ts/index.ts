@@ -12,40 +12,40 @@ app.use(express.urlencoded({ extended: true }));
 const api = express.Router();
 
 app.post("/banana",
-(req: express.Request<{}, string, {count: number}>, res) => {
-    res.send([...Array(req.body.count)].map(_ => "🍌").join(''));
-});
+    (req: express.Request<{}, string, { count: number }>, res) => {
+        res.send([...Array(req.body.count)].map(_ => "🍌").join(''));
+    });
 
 
 api.post("/person",
-(req: express.Request<{}, {name: string, age: number}, number>, res) => {
-    res.send({name: "joe", age: 5});
-});
+    (req: express.Request<{}, { name: string, age: number }, number>, res) => {
+        res.send({ name: "joe", age: 5 });
+    });
 
 api.post("/any",
-(req, res) => {
-    res.send({name: "joe", age: 5});
-});
+    (req, res) => {
+        res.send({ name: "joe", age: 5 });
+    });
 
 api.get("/snake",
-(req: express.Request<{}, {}, string, number>, res) => {
-    res.send("snake");
-});
+    (req: express.Request<{}, {}, string, number>, res) => {
+        res.send("snake");
+    });
 
-api.get("/carrot", 
-(req, res) => {
-    res.send("carrot");
-});
+api.get("/carrot",
+    (req, res) => {
+        res.send("carrot");
+    });
 
-app.use("/api", (req, res) => {return 0;}, api);
+app.use("/api", (req, res) => { return 0; }, api);
 
 api.use("/methods", express.Router()
-    .post("/post", (req, res) => { res.send("🙂") })    
-    .put("/put", (req, res) => { res.send("🙂") })    
-    .delete("/delete", (req, res) => { res.send("🙂") })    
-    .patch("/patch", (req, res) => { res.send("🙂") })    
-    .options("/options", (req, res) => { res.send("🙂") })    
-    .head("/head", (req, res) => { res.send("🙂") })    
+    .post("/post", (req, res) => { res.send("🙂") })
+    .put("/put", (req, res) => { res.send("🙂") })
+    .delete("/delete", (req, res) => { res.send("🙂") })
+    .patch("/patch", (req, res) => { res.send("🙂") })
+    .options("/options", (req, res) => { res.send("🙂") })
+    .head("/head", (req, res) => { res.send("🙂") })
 );
 
 const swaggerDocument = generateSwaggerDoc();
