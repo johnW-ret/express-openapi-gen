@@ -6,11 +6,16 @@ import swaggerUi from 'swagger-ui-express';
 import { fruitRouter } from './fruit.js';
    
 const app = express();
+
+app.use(express.json());
+app.use(express.text());
+app.use(express.urlencoded({ extended: true }));
+
 const api = express.Router();
 
 app.get("/banana",
 /**
- * @param {express.Request<{},{}, number>} req 
+ * @param {express.Request<{}, string>} req 
  */
 (req, res) => {
     res.send("banana");
@@ -23,12 +28,7 @@ api.get("/snake",
     res.send("snake");
 });
 
-api.get("/carrot", 
-/**
- * 
- * @param {{body: {string}}} req 
- * @param {any} res 
- */
+api.get("/carrot",
 (req, res) => {
     res.send("carrot");
 });

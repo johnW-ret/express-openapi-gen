@@ -2,8 +2,18 @@ import ts from 'typescript';
 
 type Router = { node: ts.Node, route: string, routers: Router[], routes: Method[] };
 type MethodKind = 'get' | 'post' | 'put' | 'delete' | 'patch' | 'options' | 'head';
-// replace with express method?
-type Method = { method: MethodKind; route: string; reqType: string; };
+type HasBodyMethodKind = 'post' | 'put' | 'patch';
+
+interface Method<TMethodKind = MethodKind> {
+    method: TMethodKind;
+    name: string;
+    requestParams: { [name: string]: { type: ts.Type, required: boolean } };
+    resBody: ts.Type;
+};
+
+interface HasBodyMethod extends Method<HasBodyMethodKind> {
+    reqBody: ts.Type;
+};
 
 const getRouter = function (root: Router, node: ts.Node) {
     const stack: Router[] = [root];
@@ -100,6 +110,7 @@ export const generateSwaggerDoc = function (entryPoints?: string[]) {
     }
 
     let express: Router | undefined;
+    let schema = new Set<ts.Type>();
 
     {
         let next;
@@ -110,6 +121,7 @@ export const generateSwaggerDoc = function (entryPoints?: string[]) {
 
             // just a lambda so I can use guard statements
             (() => {
+                // get first instance of express
                 if (!ts.isCallExpression(node))
                     return;
 
@@ -123,74 +135,82 @@ export const generateSwaggerDoc = function (entryPoints?: string[]) {
 
                 const expression = node.expression;
 
-                if (!ts.isPropertyAccessExpression(expression))
+                if (node.arguments.length < 2
+                    || !ts.isPropertyAccessExpression(expression))
                     return;
 
                 const methodType = expression.name.getText();
                 const leftHandSide = expression.expression;
 
+                let router = getRightHandSide(leftHandSide, checker);
+                if (!router)
+                    return;
+
+                if (!(router = getRootCallExpression(router)))
+                    return;
+
+                if (methodType === "use") {
+                    let connectingRouter = getRightHandSide(node.arguments[1], checker);
+                    if (!connectingRouter)
+                        return;
+
+                    router = getRootCallExpression(router);
+                    connectingRouter = getRootCallExpression(connectingRouter);
+
+                    getRouter(express, router)?.routers.push({
+                        node: connectingRouter,
+                        route: node.arguments[0]
+                            .getText()
+                            // this whole section should be replaced
+                            // to also look for an identifier and get definition
+                            .slice(1, -1),
+                        routers: [],
+                        routes: []
+                    });
+                    return;
+                }
+
+                let [route, handler] = node.arguments;
+
+                if (!ts.isFunctionLike(handler))
+                    return;
+
+                const gethandlerTypes = function (reqParameter: ts.ParameterDeclaration): ts.Type[] {
+                    if (!reqParameter?.name)
+                        return [];
+
+                    const expressRequestType = checker.getTypeAtLocation(reqParameter.name);
+                    return checker.getTypeArguments(expressRequestType as ts.TypeReference).slice(1, 4);
+                }
+
+                const [resBody, reqBody, reqQuery] = gethandlerTypes(handler.parameters[0]);
+
+                schema.add(resBody);
+                schema.add(reqBody);
+
                 switch (methodType) {
-                    case "use":
-                        if (node.arguments.length < 2)
-                            return;
-
-                        let [baseRouter, connectingRouter] = [
-                            getRightHandSide(leftHandSide, checker),
-                            getRightHandSide(node.arguments[1], checker)
-                        ];
-
-                        if (!baseRouter || !connectingRouter)
-                            return;
-
-                        baseRouter = getRootCallExpression(baseRouter);
-                        connectingRouter = getRootCallExpression(connectingRouter);
-
-                        getRouter(express, baseRouter)?.routers.push({
-                            node: connectingRouter,
-                            route: node.arguments[0]
-                                .getText()
-                                // this whole section should be replaced
-                                // to also look for an identifier and get definition
-                                .slice(1, -1),
-                            routers: [],
-                            routes: []
-                        });
-                        break;
-
-                    case 'get':
                     case 'post':
                     case 'put':
-                    case 'delete':
                     case 'patch':
+                        const method: HasBodyMethod = {
+                            method: methodType,
+                            name: route.getText()
+                                .slice(1, -1),
+                            requestParams: {},
+                            reqBody,
+                            resBody
+                        };
+                        getRouter(express, router)?.routes.push(method);
+                    case 'get':
+                    case 'delete':
                     case 'options':
                     case 'head':
-                        let [route, handler] = node.arguments;
-
-                        if (!ts.isFunctionLike(handler))
-                            return;
-
-                        const getRequestType = function (parameter: ts.ParameterDeclaration): ts.Type | undefined {
-                            if (!parameter?.name)
-                                return undefined;
-
-                            const expressRequestType = checker.getTypeAtLocation(parameter.name);
-                            return checker.getTypeArguments(expressRequestType as ts.TypeReference)[2];
-                        }
-
-                        const reqType = getRequestType(handler.parameters[0]);
-                        const reqTypeName = reqType ? checker.typeToString(reqType) : "";
-
-                        let router = getRightHandSide(leftHandSide, checker);
-                        if (!router)
-                            return;
-
-                        router = getRootCallExpression(router);
-
                         getRouter(express, router)?.routes.push({
                             method: methodType,
-                            route: route.getText()
+                            name: route.getText()
                                 .slice(1, -1),
-                            reqType: reqTypeName
+                            requestParams: {},
+                            resBody
                         });
                         break;
                     default:
@@ -209,9 +229,18 @@ export const generateSwaggerDoc = function (entryPoints?: string[]) {
         return spec;
     }
 
-    let methodsBlock: { [route: string]: { method: string, reqType: string }[] } = {};
+    // define schema
+    // spec.components = {};
+    // spec.components.schemas = {};
+    // schema.forEach(t => {
+    //     const typeName = checker.typeToString(t);
 
-    const addSlashIfNone = function (route: string): string {
+    //     spec.components.schemas[checker.typeToString(t)] = {
+    // });
+
+    let methodsBlock: { [qualifiedRoute: string]: Method[] } = {};
+
+    function addSlashIfNone(route: string): string {
         return (route[0] == '/') ? route : `/${route}`;
     }
 
@@ -219,9 +248,11 @@ export const generateSwaggerDoc = function (entryPoints?: string[]) {
     type Item = { router: Router, route: string };
     const stack: Item[] = [{ router: express, route: express.route }];
     let next: Item | undefined;
+
     while ((next = stack.pop()) != undefined) {
-        next.router.routes.forEach(r => (methodsBlock[`${next!.route}${addSlashIfNone(r.route)}`] ??= [])
-            .push({ method: r.method, reqType: r.reqType }));
+        next.router.routes
+            .forEach(r => (methodsBlock[`${next!.route}${addSlashIfNone(r.name)}`] ??= [])
+                .push(r));
 
         next.router.routers.forEach(r => stack.push({
             router: r,
@@ -229,19 +260,81 @@ export const generateSwaggerDoc = function (entryPoints?: string[]) {
         }));
     }
 
+    function typeToSchema(type: ts.Type): any {
+        const typeName = checker.typeToString(type);
+
+        if (typeName == 'string' || typeName == 'number' || typeName == 'boolean') {
+            return {
+                type: typeName
+            };
+        }
+        else if (typeName == 'any') {
+            return {
+                type: "object"
+            };
+        }
+        // make sure this works with javascript arrays
+        else if (typeName.startsWith('Array<')) {
+            const arrayType = typeName.slice(6, -1);
+            return {
+                type: 'array',
+                items: {
+                    type: arrayType
+                }
+            };
+        }
+        else {
+            // build openapi schema and references later
+            const schema: any = {
+                type: "object",
+                properties: {}
+            };
+
+            // don't forget circular references
+            // ignore sub-objects for now since we'll need types anyway
+            type.getApparentProperties().forEach(p => {
+                schema.properties[p.name] = {
+                    type: checker.typeToString(checker.getTypeOfSymbol(p))
+                };
+            });
+
+            return schema;
+        }
+    }
+
     // convert methods to json spec
     Object.entries(methodsBlock).map(
         ([route, methods]) => {
             methods.forEach(m => {
                 spec.paths[route] ??= {};
-                spec.paths[route][m.method] = {
-                    "parameters": [
-                        {
-                            "schema": {
-                                type: m.reqType
+                spec.paths[route][m.method] ??= {};
+
+                function isHasRequestBody(m: Method): m is HasBodyMethod {
+                    return (<HasBodyMethod>m).reqBody !== undefined;
+                }
+
+                if ((m.method == 'post' || m.method == 'put' || m.method == 'patch')
+                    && isHasRequestBody(m)) {
+
+                    spec.paths[route][m.method].requestBody = {
+                        content: {
+                            "application/json": {
+                                schema: typeToSchema(m.reqBody)
                             }
                         }
-                    ]
+                    }
+                }
+
+                spec.paths[route][m.method]['responses'] = {
+                    "200": {
+                        "description": "success",
+                        content: {
+                            "application/json": {
+                                schema: typeToSchema(m.resBody)
+                            }
+                        }
+                    }
+
                 }
             });
         }

@@ -3,7 +3,7 @@
   "main": "index.js",
   "type": "module",
   "scripts": {
-    "start": "npm run build && ts-node index.js",
+    "start": "ts-node --esm index.ts",
     "build": "tsc --build",
     "test": "echo \"Error: no test specified\" && exit 1"
   },

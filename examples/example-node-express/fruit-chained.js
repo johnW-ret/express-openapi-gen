@@ -2,12 +2,12 @@ import express from 'express';
 
 export const fruitRouter = express.Router();
 
-fruitRouter.get("/banana",
+fruitRouter.post("/banana",
 /**
- * @param {express.Request<{},{}, number>} req 
+ * @param {express.Request<{}, string, {count: number}>} req 
  */
 (req, res) => {
-    res.send([...Array(req.body)].map(_ => "🍌"));
+    res.send([...Array(req.body.count)].map(_ => "🍌").join(''));
 });
 
 fruitRouter.get("/orange",

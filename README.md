@@ -11,10 +11,10 @@ import swaggerUi from 'swagger-ui-express';
 
 const app = express();
 
-app.get("/banana",
+app.post("/banana",
 // use JSDoc for JS
-(req: express.Request<{}, {}, number>, res) => {
-    res.send([...Array(req.body)].map(_ => "🍌"));
+(req: express.Request<{}, string, {count: number}>, res) => {
+    res.send([...Array(req.body.count)].map(_ => "🍌").join(''));
 });
 
 // uses process.argv[1] or you can pass the relative path from your package.json
@@ -52,7 +52,9 @@ See [examples](/examples) for more detailed examples.
 - No support for tags, descriptions, or additional metadata. This behavior will ideally change in a future version, though you can merge the generated schema with your own descriptive data.
 
 ## Todo
-- Types referenced are not added to the definition `schema` (auto-generate `schema` from involved types)
+- No support for query parameters (add support for query parameters)
+- Only first level properties of types are added to the `schema`
+- Types referenced are not added to the definition `components/schema` and are generated for each method (auto-generate `components/schema` from involved types)
 
 ---
 

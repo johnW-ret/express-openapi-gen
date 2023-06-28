@@ -4,17 +4,32 @@ import { generateSwaggerDoc } from 'express-openapi-gen';
 import swaggerUi from 'swagger-ui-express';
 
 const app = express();
+
+app.use(express.json());
+app.use(express.text());
+app.use(express.urlencoded({ extended: true }));
+
 const api = express.Router();
 
-app.get("/banana",
-(req: express.Request<{}, {}, number>, res) => {
-    res.send("banana");
+app.post("/banana",
+(req: express.Request<{}, string, {count: number}>, res) => {
+    res.send([...Array(req.body.count)].map(_ => "🍌").join(''));
 });
 
 app.use("/api", api);
 
+api.post("/person",
+(req: express.Request<{}, {name: string, age: number}, number>, res) => {
+    res.send({name: "joe", age: 5});
+});
+
+api.post("/any",
+(req, res) => {
+    res.send({name: "joe", age: 5});
+});
+
 api.get("/snake",
-(req: express.Request<{}, {}, string>, res) => {
+(req: express.Request<{}, {}, string, number>, res) => {
     res.send("snake");
 });
 
