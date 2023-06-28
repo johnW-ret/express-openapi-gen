@@ -16,7 +16,6 @@ app.post("/banana",
     res.send([...Array(req.body.count)].map(_ => "🍌").join(''));
 });
 
-app.use("/api", (req, res) => {return 0;}, api);
 
 api.post("/person",
 (req: express.Request<{}, {name: string, age: number}, number>, res) => {
@@ -37,6 +36,8 @@ api.get("/carrot",
 (req, res) => {
     res.send("carrot");
 });
+
+app.use("/api", (req, res) => {return 0;}, api);
 
 api.use("/methods", express.Router()
     .post("/post", (req, res) => { res.send("🙂") })    

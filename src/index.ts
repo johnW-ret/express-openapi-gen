@@ -110,6 +110,7 @@ export const generateSwaggerDoc = function (entryPoints?: string[]) {
     }
 
     let express: Router | undefined;
+    let unhookedRouters: { [route: string]: Router } = {};
     let schema = new Set<ts.Type>();
 
     {
@@ -142,31 +143,44 @@ export const generateSwaggerDoc = function (entryPoints?: string[]) {
                 const methodType = expression.name.getText();
                 const leftHandSide = expression.expression;
 
-                let router = getRightHandSide(leftHandSide, checker);
-                if (!router)
+                let baseRouterExpression = getRightHandSide(leftHandSide, checker);
+                if (!baseRouterExpression)
                     return;
 
-                if (!(router = getRootCallExpression(router)))
+                if (!(baseRouterExpression = getRootCallExpression(baseRouterExpression)))
                     return;
 
                 if (methodType === "use") {
                     const routerArg = node.arguments.find(arg => {
                         const type = checker.getTypeAtLocation(arg);
 
-                        return checker.typeToString(type) === "Router";    
+                        return checker.typeToString(type) === "Router";
                     });
                     if (!routerArg)
                         return;
-                    
-                    let connectingRouter = getRightHandSide(routerArg, checker);
-                    if (!connectingRouter)
+
+                    let connectingRouterNode = getRightHandSide(routerArg, checker);
+                    if (!connectingRouterNode)
                         return;
 
-                    router = getRootCallExpression(router);
-                    connectingRouter = getRootCallExpression(connectingRouter);
+                    // router has been added unhooked
 
-                    getRouter(express, router)?.routers.push({
-                        node: connectingRouter,
+                    connectingRouterNode = getRootCallExpression(connectingRouterNode);
+
+                    let baseRouter = getRouter(express, baseRouterExpression);
+                    if (!baseRouter)
+                        return;
+
+                    let connectingRouter = unhookedRouters[routerArg.getText()];
+
+                    if (connectingRouter) {
+                        baseRouter.routers.push(connectingRouter);
+                        delete unhookedRouters[routerArg.getText()];
+                        return;
+                    }
+
+                    baseRouter.routers.push({
+                        node: connectingRouterNode,
                         route: node.arguments[0]
                             .getText()
                             // this whole section should be replaced
@@ -198,6 +212,28 @@ export const generateSwaggerDoc = function (entryPoints?: string[]) {
                 schema.add(resBody);
                 schema.add(reqBody);
 
+                // if the router has not been hooked up yet
+                let router = getRouter(express, baseRouterExpression);
+
+                if (!router) {
+                    let unhookedRouter = unhookedRouters[leftHandSide.getText()];
+
+                    if (unhookedRouter !== undefined) {
+                        router = unhookedRouter;
+                    } else {
+                        router = unhookedRouters[leftHandSide.getText()] = {
+                            node: baseRouterExpression,
+                            route: node.arguments[0]
+                                .getText()
+                                // this whole section should be replaced
+                                // to also look for an identifier and get definition
+                                .slice(1, -1),
+                            routers: [],
+                            routes: []
+                        };
+                    }
+                }
+
                 switch (methodType) {
                     case 'post':
                     case 'put':
@@ -210,12 +246,12 @@ export const generateSwaggerDoc = function (entryPoints?: string[]) {
                             reqBody,
                             resBody
                         };
-                        getRouter(express, router)?.routes.push(method);
+                        router.routes.push(method);
                     case 'get':
                     case 'delete':
                     case 'options':
                     case 'head':
-                        getRouter(express, router)?.routes.push({
+                        router.routes.push({
                             method: methodType,
                             name: route.getText()
                                 .slice(1, -1),
