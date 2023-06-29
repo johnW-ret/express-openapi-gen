@@ -27,15 +27,14 @@ const getRouter = function (root: Router, node: ts.Node) {
     }
 };
 
-function getDeclarationFromImportSpecifier(importNode: ts.ImportSpecifier, checker: ts.TypeChecker) {
-    const originalSymbol = checker.getSymbolAtLocation(importNode.name);
+function getAliasedDeclarations(declaration: ts.NamedDeclaration, index: number, checker: ts.TypeChecker) {
+    const originalSymbol = checker.getSymbolAtLocation(declaration.name!);
 
     if (!originalSymbol)
         return;
 
     const symbol = checker.getAliasedSymbol(originalSymbol);
-    const declaration = symbol?.declarations?.[0];
-    return declaration;
+    return symbol?.declarations?.[0];
 }
 
 function getRightHandSide(node: ts.Expression, checker: ts.TypeChecker): ts.Expression | undefined {
@@ -51,14 +50,23 @@ function getRightHandSide(node: ts.Expression, checker: ts.TypeChecker): ts.Expr
         return node;
 
     let declaration = declarations[0];
+    if (!declaration)
+        return node;
+
     if (ts.isVariableDeclaration(declaration)) {
         return declaration.initializer;
     }
     else if (ts.isImportSpecifier(declaration)) {
-        declaration = getDeclarationFromImportSpecifier(declaration, checker) ?? declaration;
+        declaration = getAliasedDeclarations(declaration, 0, checker) ?? declaration;
 
         if (declaration && ts.isVariableDeclaration(declaration)) {
             return declaration.initializer;
+        }
+    } else if (ts.isImportClause(declaration)) {
+        const alias = getAliasedDeclarations(declaration, 0, checker);
+
+        if (alias && ts.isExportAssignment(alias)) {
+            return alias.expression;
         }
     }
 

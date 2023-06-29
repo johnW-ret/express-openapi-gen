@@ -4,6 +4,7 @@ import express from 'express';
 import { generateSwaggerDoc } from 'express-openapi-gen';
 import swaggerUi from 'swagger-ui-express';
 import { fruitRouter, chainedFruit } from './fruit.js';
+import exportDefaultGrape from './exportDefaultGrape.js';
 
 const app = express();
 
@@ -22,6 +23,8 @@ app.get("/banana",
     });
 
 app.use("/api", api);
+
+api.get("/export-default-grape", exportDefaultGrape);
 
 api.get("/snake",
     (req, res) => {
