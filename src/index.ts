@@ -3,11 +3,13 @@ import ts from 'typescript';
 type Router = { node: ts.Node, route: string, routers: Router[], routes: Method[] };
 type MethodKind = 'get' | 'post' | 'put' | 'delete' | 'patch' | 'options' | 'head';
 type HasBodyMethodKind = 'post' | 'put' | 'patch';
+type ParameterLocation = 'route' | 'body' | 'query';
+interface RequestParameters { [name: string]: { type: ts.Type, in: ParameterLocation, required: boolean } };
 
 interface Method<TMethodKind = MethodKind> {
     method: TMethodKind;
     name: string;
-    requestParams: { [name: string]: { type: ts.Type, required: boolean } };
+    requestParams: RequestParameters;
     resBody: ts.Type;
 };
 
@@ -207,18 +209,33 @@ export const generateSwaggerDoc = function (entryPoints?: string[]) {
                 if (!ts.isFunctionLike(handler))
                     return;
 
-                const gethandlerTypes = function (reqParameter: ts.ParameterDeclaration): ts.Type[] {
+                const gethandlerTypes = function (reqParameter: ts.ParameterDeclaration): readonly (ts.Type | undefined)[] {
                     if (!reqParameter?.name)
                         return [];
 
                     const expressRequestType = checker.getTypeAtLocation(reqParameter.name);
-                    return checker.getTypeArguments(expressRequestType as ts.TypeReference).slice(1, 4);
+                    return checker.getTypeArguments(expressRequestType as ts.TypeReference);
                 }
 
-                const [resBody, reqBody, reqQuery] = gethandlerTypes(handler.parameters[0]);
+                let [paramsDict, resBody, reqBody, reqQuery] = gethandlerTypes(handler.parameters[0]);
 
+                resBody ??= checker.getAnyType();
+                reqBody ??= checker.getAnyType();
                 schema.add(resBody);
                 schema.add(reqBody);
+
+                let requestParams: RequestParameters = {};
+
+                paramsDict?.getApparentProperties().forEach(p => {
+                    const type = checker.getTypeOfSymbol(p);
+                    schema.add(type);
+
+                    requestParams[p.name] = {
+                        type,
+                        in: "route",
+                        required: true
+                    }
+                });
 
                 // if the router has not been hooked up yet
                 let router = getRouter(express, baseRouterExpression);
@@ -250,7 +267,7 @@ export const generateSwaggerDoc = function (entryPoints?: string[]) {
                             method: methodType,
                             name: route.getText()
                                 .slice(1, -1),
-                            requestParams: {},
+                            requestParams,
                             reqBody,
                             resBody
                         };
@@ -263,7 +280,7 @@ export const generateSwaggerDoc = function (entryPoints?: string[]) {
                             method: methodType,
                             name: route.getText()
                                 .slice(1, -1),
-                            requestParams: {},
+                            requestParams,
                             resBody
                         });
                         break;
@@ -366,6 +383,15 @@ export const generateSwaggerDoc = function (entryPoints?: string[]) {
                 function isHasRequestBody(m: Method): m is HasBodyMethod {
                     return (<HasBodyMethod>m).reqBody !== undefined;
                 }
+
+                spec.paths[route][m.method].parameters = Object.entries(m.requestParams).map(([name, param]) => {
+                    return {
+                        name,
+                        in: param.in,
+                        required: param.required,
+                        schema: typeToSchema(param.type)
+                    }
+                });
 
                 if ((m.method == 'post' || m.method == 'put' || m.method == 'patch')
                     && isHasRequestBody(m)) {
