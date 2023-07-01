@@ -1,6 +1,7 @@
 import ts from 'typescript';
 
 type Router = { node: ts.Node, route: string, routers: Router[], routes: Method[] };
+type UnconnectedRouter = { node: ts.Node, routers: Router[], routes: Method[] };
 type MethodKind = 'get' | 'post' | 'put' | 'delete' | 'patch' | 'options' | 'head';
 type HasBodyMethodKind = 'post' | 'put' | 'patch';
 type ParameterLocation = 'route' | 'body' | 'query';
@@ -17,8 +18,8 @@ interface HasBodyMethod extends Method<HasBodyMethodKind> {
     reqBody: ts.Type;
 };
 
-const getRouter = function (root: Router, node: ts.Node) {
-    const stack: Router[] = [root];
+function getRouter(root: Router | UnconnectedRouter, node: ts.Node): Router | UnconnectedRouter | undefined {
+    const stack = [root];
     let next;
 
     while ((next = stack.pop()) != null) {
@@ -28,6 +29,15 @@ const getRouter = function (root: Router, node: ts.Node) {
         stack.push(...next.routers);
     }
 };
+
+function getFirstRouterFromArray(array: Array<Router | UnconnectedRouter>, node: ts.Node) {
+    let found;
+    array.find(router => {
+        found = getRouter(router, node);
+    });
+
+    return found;
+}
 
 function getAliasedDeclarations(declaration: ts.NamedDeclaration, index: number, checker: ts.TypeChecker) {
     const originalSymbol = checker.getSymbolAtLocation(declaration.name!);
@@ -120,7 +130,7 @@ export const generateSwaggerDoc = function (entryPoints?: string[]) {
     }
 
     let express: Router | undefined;
-    let unhookedRouters: { [route: string]: Router } = {};
+    let unhookedRouters: { [pos: number]: UnconnectedRouter } = {};
     let schema = new Set<ts.Type>();
 
     {
@@ -173,19 +183,28 @@ export const generateSwaggerDoc = function (entryPoints?: string[]) {
                     if (!connectingRouterNode)
                         return;
 
-                    // router has been added unhooked
-
                     connectingRouterNode = getRootCallExpression(connectingRouterNode);
 
-                    let baseRouter = getRouter(express, baseRouterExpression);
+
+                    let baseRouter = getRouter(express, baseRouterExpression)
+                        ?? getFirstRouterFromArray(Object.entries(unhookedRouters)
+                            .map(([key, unconnectedRouter]) => unconnectedRouter), baseRouterExpression);
+
                     if (!baseRouter)
                         return;
 
-                    let connectingRouter = unhookedRouters[routerArg.getText()];
+                    let connectingRouter = unhookedRouters[connectingRouterNode.pos];
 
                     if (connectingRouter) {
-                        baseRouter.routers.push(connectingRouter);
-                        delete unhookedRouters[routerArg.getText()];
+                        baseRouter.routers.push({
+                            ...connectingRouter,
+                            route: node.arguments[0]
+                                .getText()
+                                // this whole section should be replaced
+                                // to also look for an identifier and get definition
+                                .slice(1, -1)
+                        });
+                        delete unhookedRouters[baseRouterExpression.pos];
                         return;
                     }
 
@@ -238,21 +257,18 @@ export const generateSwaggerDoc = function (entryPoints?: string[]) {
                 });
 
                 // if the router has not been hooked up yet
-                let router = getRouter(express, baseRouterExpression);
+                let router: Router | UnconnectedRouter | undefined = getRouter(express, baseRouterExpression)
+                    ?? getFirstRouterFromArray(Object.entries(unhookedRouters)
+                        .map(([key, unconnectedRouter]) => unconnectedRouter), baseRouterExpression);
 
                 if (!router) {
-                    let unhookedRouter = unhookedRouters[leftHandSide.getText()];
+                    let unhookedRouter = unhookedRouters[baseRouterExpression.pos];
 
                     if (unhookedRouter !== undefined) {
                         router = unhookedRouter;
                     } else {
-                        router = unhookedRouters[leftHandSide.getText()] = {
+                        router = unhookedRouters[baseRouterExpression.pos] = {
                             node: baseRouterExpression,
-                            route: node.arguments[0]
-                                .getText()
-                                // this whole section should be replaced
-                                // to also look for an identifier and get definition
-                                .slice(1, -1),
                             routers: [],
                             routes: []
                         };
