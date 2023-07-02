@@ -4,7 +4,7 @@ type Router = { node: ts.Node, route: string, routers: Router[], routes: Method[
 type UnconnectedRouter = { node: ts.Node, routers: Router[], routes: Method[] };
 type MethodKind = 'get' | 'post' | 'put' | 'delete' | 'patch' | 'options' | 'head';
 type HasBodyMethodKind = 'post' | 'put' | 'patch';
-type ParameterLocation = 'route' | 'body' | 'query';
+type ParameterLocation = 'path' | 'body' | 'query';
 interface RequestParameters { [name: string]: { type: ts.Type, in: ParameterLocation, required: boolean } };
 
 interface Method<TMethodKind = MethodKind> {
@@ -297,7 +297,7 @@ export const generateSwaggerDoc = function (entryPoints?: string[]) {
 
                     requestParams[p.name] = {
                         type,
-                        in: "route",
+                        in: "path",
                         required: true
                     }
                 });
@@ -373,8 +373,19 @@ export const generateSwaggerDoc = function (entryPoints?: string[]) {
 
     let methodsBlock: { [qualifiedRoute: string]: Method[] } = {};
 
+    // probably redundant since slash is required for express?
     function addSlashIfNone(route: string): string {
         return (route[0] == '/') ? route : `/${route}`;
+    }
+
+    function expressParamsInPathToOpenApiParamsInPath(route: string): string {
+        const matches = route.match(/:[_\w\d-]+/);
+        
+        matches?.forEach(m => { 
+            route = route.replace(m, `{${m.slice(1)}}`);
+        });
+
+        return route;
     }
 
     // extract methods from router tree
@@ -384,7 +395,7 @@ export const generateSwaggerDoc = function (entryPoints?: string[]) {
 
     while ((next = stack.pop()) != undefined) {
         next.router.routes
-            .forEach(r => (methodsBlock[`${next!.route}${addSlashIfNone(r.name)}`] ??= [])
+            .forEach(r => (methodsBlock[`${next!.route}${expressParamsInPathToOpenApiParamsInPath(addSlashIfNone(r.name))}`] ??= [])
                 .push(r));
 
         next.router.routers.forEach(r => stack.push({
