@@ -1,3 +1,3 @@
-import { fruitRouter, chainedFruit } from "./fruit-chained.js";
+import { fruitRouter, chainedCarrot } from "./fruit-chained.js";
 
-export { fruitRouter, chainedFruit };
+export { fruitRouter, chainedCarrot };

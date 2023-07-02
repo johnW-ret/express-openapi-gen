@@ -2,7 +2,7 @@ import express from 'express';
 
 export const fruitRouter = express.Router();
 
-export const chainedFruit = (req, res) => {
+export const chainedCarrot = (req, res) => {
     res.send("carrot");
 };
 
