@@ -53,9 +53,9 @@ api.get("/carrot",
 
 // type your route parameters and return types
 api.get("/snake/:count",
-    /** @type {express.RequestHandler<{count: number}, string>} */
+    /** @type {express.RequestHandler<{count: string}, {}>} */
     (req, res) => {
-        res.send([...Array(req.params.count)].map(_ => "🐍").join(''));
+        res.send([...Array(Number(req.params.count))].map(_ => "🐍").join(''));
     });
 
 // example using handlers

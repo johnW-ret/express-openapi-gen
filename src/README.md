@@ -13,11 +13,11 @@ const app = express();
 
 app.use(express.json());
 
-app.post("/banana",
-// use JSDoc for JS
-(req: express.Request<{}, string, {count: number}>, res) => {
-    res.send([...Array(req.body.count)].map(_ => "🍌").join(''));
-});
+app.get("/banana/:count",
+    // use JSDoc for JS
+    (req: express.Request<{ count: string }, string>, res) => {
+        res.send([...Array(Number(req.params.count))].map(_ => "🍌").join(''));
+    });
 
 // uses process.argv[1] or you can pass the relative path from your package.json
 const swaggerDocument = generateSwaggerDoc();

@@ -11,15 +11,9 @@ app.use(express.urlencoded({ extended: true }));
 
 const api = express.Router();
 
-app.post("/banana",
-    (req: express.Request<{}, string, { count: number }>, res) => {
-        res.send([...Array(req.body.count)].map(_ => "🍌").join(''));
-    });
-
-
-api.post("/person",
-    (req: express.Request<{}, { name: string, age: number }, number>, res) => {
-        res.send({ name: "joe", age: 5 });
+app.get("/banana/:count",
+    (req: express.Request<{ count: string }, string>, res) => {
+        res.send([...Array(Number(req.params.count))].map(_ => "🍌").join(''));
     });
 
 api.post("/any",
