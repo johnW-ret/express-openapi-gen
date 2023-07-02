@@ -239,13 +239,14 @@ export const generateSwaggerDoc = function (entryPoints?: string[]) {
 
                     connectingRouterNode = getRootCallExpression(connectingRouterNode);
 
-
                     let baseRouter = getRouter(express, baseRouterExpression)
                         ?? getFirstRouterFromArray(Object.entries(unhookedRouters)
-                            .map(([key, unconnectedRouter]) => unconnectedRouter), baseRouterExpression);
-
-                    if (!baseRouter)
-                        return;
+                            .map(([key, unconnectedRouter]) => unconnectedRouter), baseRouterExpression)
+                        ?? (unhookedRouters[baseRouterExpression.pos] = {
+                            node: baseRouterExpression,
+                            routers: [],
+                            routes: []
+                        });
 
                     let connectingRouter = unhookedRouters[connectingRouterNode.pos];
 
