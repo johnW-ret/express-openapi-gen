@@ -379,11 +379,12 @@ export const generateSwaggerDoc = function (entryPoints?: string[]) {
     }
 
     function expressParamsInPathToOpenApiParamsInPath(route: string): string {
-        const matches = route.match(/:[_\w\d-]+/);
-        
-        matches?.forEach(m => { 
-            route = route.replace(m, `{${m.slice(1)}}`);
-        });
+        const matches = route.matchAll(/:[_\w\d-]+/g);
+
+        for (const match of matches) {
+            if (match[0])
+                route = route.replace(match[0], `{${match[0].slice(1)}}`);
+        }
 
         return route;
     }
