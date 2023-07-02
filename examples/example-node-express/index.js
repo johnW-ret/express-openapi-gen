@@ -58,6 +58,12 @@ api.get("/snake/:a/and/:b",
         res.send([...Array(Number(req.params.a) * Number(req.params.b))].map(_ => "🐍").join(''));
     });
 
+
+api.get("/my-name/:first?/:last?",
+    (req, res) => {
+        res.send(`Your name is ${req.params.first} ${req.params.last}`);
+    });
+
 // example using handlers
 /**
  * Returns an object with the properties `name` and `age`.

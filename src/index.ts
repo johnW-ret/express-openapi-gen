@@ -152,6 +152,14 @@ function getRootCallExpression(node: ts.Node): ts.Node {
     return lastCallExpression ?? node;
 }
 
+function isNullableType(type: ts.Type): boolean {
+    return (
+        (ts.TypeFlags.Null & type.flags) !== 0 ||
+        (ts.TypeFlags.Undefined & type.flags) !== 0 ||
+        (ts.TypeFlags.Void & type.flags) !== 0
+    );
+}
+
 export const generateSwaggerDoc = function (entryPoints?: string[]) {
     entryPoints ??= [process.argv[1]];
 
@@ -298,7 +306,7 @@ export const generateSwaggerDoc = function (entryPoints?: string[]) {
                     requestParams[p.name] = {
                         type,
                         in: "path",
-                        required: true
+                        required: isNullableType(type)
                     }
                 });
 
@@ -378,12 +386,16 @@ export const generateSwaggerDoc = function (entryPoints?: string[]) {
         return (route[0] == '/') ? route : `/${route}`;
     }
 
+    function removeNullableQuestionMarkIfExists(route: string): string {
+        return (route.at(-1) == '?') ? route.slice(0, -1) : route;
+    }
+
     function expressParamsInPathToOpenApiParamsInPath(route: string): string {
-        const matches = route.matchAll(/:[_\w\d-]+/g);
+        const matches = route.matchAll(/:[_\w\d-]+\??/g);
 
         for (const match of matches) {
             if (match[0])
-                route = route.replace(match[0], `{${match[0].slice(1)}}`);
+                route = route.replace(match[0], `{${removeNullableQuestionMarkIfExists(match[0].slice(1))}}`);
         }
 
         return route;
