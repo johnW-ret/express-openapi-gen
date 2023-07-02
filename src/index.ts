@@ -18,6 +18,56 @@ interface HasBodyMethod extends Method<HasBodyMethodKind> {
     reqBody: ts.Type;
 };
 
+/* @internal - from typescript 3.9 codebase*/
+const enum TypeMapKind {
+    Simple,
+    Array,
+    Function,
+    Composite,
+    Merged,
+}
+
+// modified from https://stackoverflow.com/a/62136593
+/* @internal - from typescript 3.9 codebase*/
+type TypeMapper =
+    | { kind: TypeMapKind.Simple, source: ts.Type, target: ts.Type }
+    | { kind: TypeMapKind.Array, sources: readonly ts.Type[], targets: readonly ts.Type[] | undefined }
+    | { kind: TypeMapKind.Function, func: (t: ts.Type) => ts.Type }
+    | { kind: TypeMapKind.Composite | TypeMapKind.Merged, mapper1: TypeMapper, mapper2: TypeMapper };
+
+/* basic application of the mapper - recursive for composite.*/
+function typeMapper(mapper: TypeMapper, source: ts.Type): ts.Type {
+    switch (mapper.kind) {
+        case TypeMapKind.Simple:
+            return mapper.target;
+        case TypeMapKind.Array:
+            return mapper.targets![mapper.sources.indexOf(source)]
+        case TypeMapKind.Function:
+            return mapper.func(source);
+        case TypeMapKind.Composite:
+        case TypeMapKind.Merged:
+            return typeMapper(mapper.mapper2, source);
+    }
+}
+
+function inferTypeArguments(node: ts.CallExpression, typeChecker: ts.TypeChecker): ts.Type[] {
+    const signature: any = typeChecker.getResolvedSignature(node);
+    const targetParams: ts.TypeParameter[] = signature['target'] && signature['target'].typeParameters;
+
+    if (!targetParams) {
+        return [];
+    }
+
+    if (signature['mapper'] == undefined)
+        return targetParams;
+
+    //typescript <= 3.8
+    if (typeof signature['mapper'] == "function")
+        return targetParams.map(p => signature['mapper'](p));
+    //typescript >= 3.9.... 
+    return targetParams.map(p => typeMapper(signature['mapper'] as TypeMapper, p));
+}
+
 function getRouter(root: Router | UnconnectedRouter, node: ts.Node): Router | UnconnectedRouter | undefined {
     const stack = [root];
     let next;
@@ -49,7 +99,7 @@ function getAliasedDeclarations(declaration: ts.NamedDeclaration, index: number,
     return symbol?.declarations?.[0];
 }
 
-function getRightHandSide(node: ts.Expression, checker: ts.TypeChecker): ts.Expression | undefined {
+function getRightHandSide(node: ts.Expression, checker: ts.TypeChecker): ts.Node | undefined {
     if (!ts.isIdentifier(node))
         return node;
 
@@ -64,6 +114,10 @@ function getRightHandSide(node: ts.Expression, checker: ts.TypeChecker): ts.Expr
     let declaration = declarations[0];
     if (!declaration)
         return node;
+
+    if (ts.isFunctionDeclaration(declaration)) {
+        return declaration;
+    }
 
     if (ts.isVariableDeclaration(declaration)) {
         return declaration.initializer;
@@ -85,7 +139,7 @@ function getRightHandSide(node: ts.Expression, checker: ts.TypeChecker): ts.Expr
     return node;
 }
 
-function getRootCallExpression(node: ts.Expression): ts.Expression {
+function getRootCallExpression(node: ts.Node): ts.Node {
     let lastCallExpression;
     let next: ts.Node = node;
     while (next != null) {
@@ -198,10 +252,7 @@ export const generateSwaggerDoc = function (entryPoints?: string[]) {
                     if (connectingRouter) {
                         baseRouter.routers.push({
                             ...connectingRouter,
-                            route: node.arguments[0]
-                                .getText()
-                                // this whole section should be replaced
-                                // to also look for an identifier and get definition
+                            route: checker.typeToString(checker.getTypeAtLocation(node.arguments[0]))
                                 .slice(1, -1)
                         });
                         delete unhookedRouters[baseRouterExpression.pos];
@@ -210,10 +261,7 @@ export const generateSwaggerDoc = function (entryPoints?: string[]) {
 
                     baseRouter.routers.push({
                         node: connectingRouterNode,
-                        route: node.arguments[0]
-                            .getText()
-                            // this whole section should be replaced
-                            // to also look for an identifier and get definition
+                        route: checker.typeToString(checker.getTypeAtLocation(node.arguments[0]))
                             .slice(1, -1),
                         routers: [],
                         routes: []
@@ -221,22 +269,19 @@ export const generateSwaggerDoc = function (entryPoints?: string[]) {
                     return;
                 }
 
-                let [route, handler] = node.arguments;
+                const callSignatureType = checker.getTypeAtLocation(expression);
 
-                handler = getRightHandSide(handler, checker) ?? handler;
-
-                if (!ts.isFunctionLike(handler))
+                if (!checker.typeToString(callSignatureType).includes("IRouterMatcher"))
                     return;
 
-                const gethandlerTypes = function (reqParameter: ts.ParameterDeclaration): readonly (ts.Type | undefined)[] {
-                    if (!reqParameter?.name)
-                        return [];
+                const matcherTypes = inferTypeArguments(node, checker);
 
-                    const expressRequestType = checker.getTypeAtLocation(reqParameter.name);
-                    return checker.getTypeArguments(expressRequestType as ts.TypeReference);
+                let [route, paramsDict, resBody, reqBody, reqQuery] = matcherTypes;
+
+                if (matcherTypes.length == 5) {
+                    [paramsDict, resBody, reqBody, reqQuery] = matcherTypes;
+                    route = checker.getTypeAtLocation(node.arguments[0]);
                 }
-
-                let [paramsDict, resBody, reqBody, reqQuery] = gethandlerTypes(handler.parameters[0]);
 
                 resBody ??= checker.getAnyType();
                 reqBody ??= checker.getAnyType();
@@ -281,7 +326,7 @@ export const generateSwaggerDoc = function (entryPoints?: string[]) {
                     case 'patch':
                         const method: HasBodyMethod = {
                             method: methodType,
-                            name: route.getText()
+                            name: checker.typeToString(route)
                                 .slice(1, -1),
                             requestParams,
                             reqBody,
@@ -294,7 +339,7 @@ export const generateSwaggerDoc = function (entryPoints?: string[]) {
                     case 'head':
                         router.routes.push({
                             method: methodType,
-                            name: route.getText()
+                            name: checker.typeToString(route)
                                 .slice(1, -1),
                             requestParams,
                             resBody
