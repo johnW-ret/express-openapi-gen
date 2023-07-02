@@ -52,6 +52,7 @@ See [examples](/examples) for more detailed examples.
     ```
     This behavior may change in a future version.
 - No support for tags, descriptions, or additional metadata. This behavior will ideally change in a future version, though you can merge the generated schema with your own descriptive data.
+- See more limitations at the [project's GitHub README's Todo list](https://github.com/johnW-ret/express-openapi-gen#todo-).
 
 ---
 
