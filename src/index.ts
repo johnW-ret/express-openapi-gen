@@ -371,13 +371,7 @@ export const generateSwaggerDoc = function (entryPoints?: string[]) {
     }
 
     // define schema
-    // spec.components = {};
-    // spec.components.schemas = {};
-    // schema.forEach(t => {
-    //     const typeName = checker.typeToString(t);
-
-    //     spec.components.schemas[checker.typeToString(t)] = {
-    // });
+    spec.components = { schemas: {} };
 
     let methodsBlock: { [qualifiedRoute: string]: Method[] } = {};
 
@@ -416,47 +410,74 @@ export const generateSwaggerDoc = function (entryPoints?: string[]) {
             route: `${next!.route}${addSlashIfNone(r.route)}`
         }));
     }
-
+    
     function typeToSchema(type: ts.Type): any {
-        const typeName = checker.typeToString(type);
+        let seen: ts.Type[] = []; // for infinite cycles
 
-        if (typeName == 'string' || typeName == 'number' || typeName == 'boolean') {
-            return {
-                type: typeName
-            };
-        }
-        else if (typeName == 'any') {
-            return {
-                type: "object"
-            };
-        }
-        // make sure this works with javascript arrays
-        else if (typeName.startsWith('Array<')) {
-            const arrayType = typeName.slice(6, -1);
-            return {
-                type: 'array',
-                items: {
-                    type: arrayType
-                }
-            };
-        }
-        else {
-            // build openapi schema and references later
-            const schema: any = {
-                type: "object",
-                properties: {}
-            };
+        function rec(type: ts.Type): any {
+            const typeName = checker.typeToString(type);
 
-            // don't forget circular references
-            // ignore sub-objects for now since we'll need types anyway
-            type.getApparentProperties().forEach(p => {
-                schema.properties[p.name] = {
-                    type: checker.typeToString(checker.getTypeOfSymbol(p))
+            if (typeName == 'string' || typeName == 'number' || typeName == 'boolean') {
+                return {
+                    type: typeName
                 };
-            });
+            }
+            else if (typeName == 'any') {
+                return {
+                    type: "object"
+                };
+            }
+            else if (checker.isArrayLikeType(type)) {
+                let arrayTypeSchema: any = { type: "object" };
 
-            return schema;
+                if (checker.isArrayLikeType(type)) {
+                    const arrayType = type as ts.TypeReference;
+                    if (arrayType) {
+                        const elementType = checker.getTypeArguments(arrayType)[0];
+                        arrayTypeSchema = rec(elementType);
+                    }
+                }
+                return {
+                    type: 'array',
+                    items: arrayTypeSchema
+                };
+            }
+            else {
+                // if it's not a known type then just get the direct schema and don't add it to schemas
+                if (!type.aliasSymbol) {
+                    return {
+                        type: "object",
+                        properties: type.getApparentProperties()
+                            .reduce((a, v) => ({ ...a, [v.name]: rec(checker.getTypeOfSymbol(v)) }), {})
+                    };
+                }
+
+                if (!spec.components.schemas[typeName]) {
+                    // for infinite cycles
+                    if (seen.includes(type)) {
+                        return {
+                            "$ref": `#/components/schemas/${typeName}`
+                        };
+                    }
+                    else {
+                        // add to seen
+                        seen.push(type);
+
+                        spec.components.schemas[typeName] = {
+                            type: "object",
+                            properties: type.getApparentProperties()
+                                .reduce((a, v) => ({ ...a, [v.name]: rec(checker.getTypeOfSymbol(v)) }), {})
+                        };
+                    }
+                }
+
+                return {
+                    "$ref": `#/components/schemas/${typeName}`
+                };
+            }
         }
+
+        return rec(type);
     }
 
     // convert methods to json spec

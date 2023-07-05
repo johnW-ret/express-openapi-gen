@@ -51,14 +51,71 @@ api.get("/carrot",
         res.send("🥕");
     });
 
-// type your route parameters and return types
+const pet = express.Router();
+app.use("/pet", pet);
+
+/**
+ * @typedef Pet
+ * @property {number} id
+ * @property {string} name
+ * @property {Category} category
+ * @property {string[]} photoUrls
+ * @property {object[]} tags
+ * @property {number} tags.id
+ * @property {string} tags.name
+ * @property {string} status
+ */
+
+/**
+ * @typedef Category
+ * @property {number} id
+ * @property {string} name
+ */
+
+pet.get("/example",
+    /** @type {express.RequestHandler<{}, Pet>} */
+    (req, res) => {
+        res.send({
+            "id": 0,
+            "name": "doggie",
+            "category": {
+                "id": 1,
+                "name": "Dogs"
+            },
+            "photoUrls": [
+                "string"
+            ],
+            "tags": [
+                {
+                    "id": 0,
+                    "name": "string"
+                }
+            ],
+            "status": "available"
+        });
+    });
+
+/**
+* @typedef Node
+* @property {Node[]} branches
+* @property {number} value
+*/
+
+// works with recursive types (though Swagger UI currently has issues rendering them well)
+api.get("/tree",
+    /** @type {express.RequestHandler<{}, Node>} */
+    (req, res) => {
+        res.send({ value: 4, branches: [{ value: 5, branches: [] }] });
+    });
+
+// works with route parameters 
+// currently, route parameters must be strings due to the way express works
 api.get("/snake/:a/and/:b",
-    /** @type {express.RequestHandler<{a: string, b: string}, {}>} */
     (req, res) => {
         res.send([...Array(Number(req.params.a) * Number(req.params.b))].map(_ => "🐍").join(''));
     });
 
-
+// nullable route parameters map to optional parameters
 api.get("/my-name/:first?/:last?",
     (req, res) => {
         res.send(`Your name is ${req.params.first} ${req.params.last}`);
