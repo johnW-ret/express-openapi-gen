@@ -1,13 +1,18 @@
 import ts from 'typescript';
 
-type Router = { node: ts.Node, route: string, routers: Router[], routes: Method[] };
+interface Router extends Metadata { node: ts.Node, route: string, routers: Router[], routes: Method[] };
 type UnconnectedRouter = { node: ts.Node, routers: Router[], routes: Method[] };
 type MethodKind = 'get' | 'post' | 'put' | 'delete' | 'patch' | 'options' | 'head';
 type HasBodyMethodKind = 'post' | 'put' | 'patch';
 type ParameterLocation = 'path' | 'body' | 'query';
 interface RequestParameters { [name: string]: { type: ts.Type, in: ParameterLocation, required: boolean } };
 
-interface Method<TMethodKind = MethodKind> {
+interface Metadata {
+    description?: string;
+    summary?: string;
+}
+
+interface Method<TMethodKind = MethodKind> extends Metadata {
     method: TMethodKind;
     name: string;
     requestParams: RequestParameters;
@@ -232,6 +237,23 @@ export const generateSwaggerDoc = function (entryPoints?: string[]) {
                 if (!(baseRouterExpression = getRootCallExpression(baseRouterExpression)))
                     return;
 
+                let metadata: Metadata = {};
+                // may have to change this for 'fluent' api style
+                if (node.parent.kind === ts.SyntaxKind.ExpressionStatement) {
+                    ts.getJSDocTags(node.parent).forEach(tag => {
+                        switch (tag.tagName.text) {
+                            case 'description':
+                                metadata.description = tag.comment?.toString();
+                                break;
+                            case 'summary':
+                                metadata.summary = tag.comment?.toString();
+                                break;
+                            default:
+                                break;
+                        }
+                    });
+                }
+
                 if (methodType === "use") {
                     const routerArg = node.arguments.find(arg => {
                         const type = checker.getTypeAtLocation(arg);
@@ -339,7 +361,8 @@ export const generateSwaggerDoc = function (entryPoints?: string[]) {
                                 .slice(1, -1),
                             requestParams,
                             reqBody,
-                            resBody
+                            resBody,
+                            ...metadata
                         };
                         router.routes.push(method);
                     case 'get':
@@ -351,7 +374,8 @@ export const generateSwaggerDoc = function (entryPoints?: string[]) {
                             name: checker.typeToString(route)
                                 .slice(1, -1),
                             requestParams,
-                            resBody
+                            resBody,
+                            ...metadata
                         });
                         break;
                     default:
@@ -410,7 +434,7 @@ export const generateSwaggerDoc = function (entryPoints?: string[]) {
             route: `${next!.route}${addSlashIfNone(r.route)}`
         }));
     }
-    
+
     function typeToSchema(type: ts.Type): any {
         let seen: ts.Type[] = []; // for infinite cycles
 
@@ -486,6 +510,9 @@ export const generateSwaggerDoc = function (entryPoints?: string[]) {
             methods.forEach(m => {
                 spec.paths[route] ??= {};
                 spec.paths[route][m.method] ??= {};
+
+                spec.paths[route][m.method].summary = m.summary;
+                spec.paths[route][m.method].description = m.description;
 
                 function isHasRequestBody(m: Method): m is HasBodyMethod {
                     return (<HasBodyMethod>m).reqBody !== undefined;

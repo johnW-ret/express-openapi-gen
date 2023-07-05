@@ -115,6 +115,10 @@ api.get("/snake/:a/and/:b",
         res.send([...Array(Number(req.params.a) * Number(req.params.b))].map(_ => "🐍").join(''));
     });
 
+/**
+ * @description This is an endpoint that tells the user their name given their first and last name. The point of this this description is to be a very long example description.
+ * @summary Tell a user their name given their first and last names.
+ */
 // nullable route parameters map to optional parameters
 api.get("/my-name/:first?/:last?",
     (req, res) => {
