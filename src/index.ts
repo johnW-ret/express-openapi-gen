@@ -1,18 +1,25 @@
 import ts from 'typescript';
 
-interface Router extends Metadata { node: ts.Node, route: string, routers: Router[], routes: Method[] };
+interface IMetadata {
+    description?: string;
+    summary?: string;
+    tags: Set<string>;
+}
+
+class Metadata implements IMetadata {
+    description?: string;
+    summary?: string;
+    tags: Set<string> = new Set<string>();
+}
+
+interface Router extends IMetadata { node: ts.Node, route: string, routers: Router[], routes: Method[] };
 type UnconnectedRouter = { node: ts.Node, routers: Router[], routes: Method[] };
 type MethodKind = 'get' | 'post' | 'put' | 'delete' | 'patch' | 'options' | 'head';
 type HasBodyMethodKind = 'post' | 'put' | 'patch';
 type ParameterLocation = 'path' | 'body' | 'query';
 interface RequestParameters { [name: string]: { type: ts.Type, in: ParameterLocation, required: boolean } };
 
-interface Metadata {
-    description?: string;
-    summary?: string;
-}
-
-interface Method<TMethodKind = MethodKind> extends Metadata {
+interface Method<TMethodKind = MethodKind> extends IMetadata {
     method: TMethodKind;
     name: string;
     requestParams: RequestParameters;
@@ -217,7 +224,13 @@ export const generateSwaggerDoc = function (entryPoints?: string[]) {
                     const type = checker.getTypeAtLocation(node);
 
                     if (checker.typeToString(type) == "Express")
-                        express = { node: getRootCallExpression(node), route: '', routers: [], routes: [] };
+                        express = {
+                            node: getRootCallExpression(node),
+                            route: '',
+                            routers: [],
+                            routes: [],
+                            tags: new Set<string>(),
+                        };
                     return;
                 }
 
@@ -237,7 +250,8 @@ export const generateSwaggerDoc = function (entryPoints?: string[]) {
                 if (!(baseRouterExpression = getRootCallExpression(baseRouterExpression)))
                     return;
 
-                let metadata: Metadata = {};
+                let metadata = new Metadata();
+
                 // may have to change this for 'fluent' api style
                 if (node.parent.kind === ts.SyntaxKind.ExpressionStatement) {
                     ts.getJSDocTags(node.parent).forEach(tag => {
@@ -247,6 +261,13 @@ export const generateSwaggerDoc = function (entryPoints?: string[]) {
                                 break;
                             case 'summary':
                                 metadata.summary = tag.comment?.toString();
+                                break;
+                            case 'tags':
+                                if (typeof (tag.comment) === 'string') {
+                                    tag.comment?.split(',').forEach(tag => {
+                                        metadata.tags.add(tag.trim());
+                                    });
+                                }
                                 break;
                             default:
                                 break;
@@ -284,7 +305,8 @@ export const generateSwaggerDoc = function (entryPoints?: string[]) {
                         baseRouter.routers.push({
                             ...connectingRouter,
                             route: checker.typeToString(checker.getTypeAtLocation(node.arguments[0]))
-                                .slice(1, -1)
+                                .slice(1, -1),
+                            ...metadata
                         });
                         delete unhookedRouters[baseRouterExpression.pos];
                         return;
@@ -295,7 +317,8 @@ export const generateSwaggerDoc = function (entryPoints?: string[]) {
                         route: checker.typeToString(checker.getTypeAtLocation(node.arguments[0]))
                             .slice(1, -1),
                         routers: [],
-                        routes: []
+                        routes: [],
+                        ...metadata
                     });
                     return;
                 }
@@ -419,22 +442,6 @@ export const generateSwaggerDoc = function (entryPoints?: string[]) {
         return route;
     }
 
-    // extract methods from router tree
-    type Item = { router: Router, route: string };
-    const stack: Item[] = [{ router: express, route: express.route }];
-    let next: Item | undefined;
-
-    while ((next = stack.pop()) != undefined) {
-        next.router.routes
-            .forEach(r => (methodsBlock[`${next!.route}${expressParamsInPathToOpenApiParamsInPath(addSlashIfNone(r.name))}`] ??= [])
-                .push(r));
-
-        next.router.routers.forEach(r => stack.push({
-            router: r,
-            route: `${next!.route}${addSlashIfNone(r.route)}`
-        }));
-    }
-
     function typeToSchema(type: ts.Type): any {
         let seen: ts.Type[] = []; // for infinite cycles
 
@@ -504,6 +511,28 @@ export const generateSwaggerDoc = function (entryPoints?: string[]) {
         return rec(type);
     }
 
+    // extract methods from router tree
+    type Item = { router: Router, route: string, tags: Set<string> };
+    const stack: Item[] = [{ router: express, route: express.route, tags: new Set<string>(express.tags) }];
+    let next: Item | undefined;
+
+    while ((next = stack.pop()) != undefined) {
+        next.router.routes
+            .forEach(route => {
+                // add all the tags from the immediate parent (which recursively means its parents)
+                next?.tags.forEach(element => route.tags.add(element));
+
+                (methodsBlock[`${next!.route}${expressParamsInPathToOpenApiParamsInPath(addSlashIfNone(route.name))}`] ??= [])
+                    .push(route)
+            });
+
+        next.router.routers.forEach(r => stack.push({
+            router: r,
+            route: `${next!.route}${addSlashIfNone(r.route)}`,
+            tags: new Set<string>([...next!.tags, ...r.tags])
+        }));
+    }
+
     // convert methods to json spec
     Object.entries(methodsBlock).map(
         ([route, methods]) => {
@@ -513,6 +542,7 @@ export const generateSwaggerDoc = function (entryPoints?: string[]) {
 
                 spec.paths[route][m.method].summary = m.summary;
                 spec.paths[route][m.method].description = m.description;
+                spec.paths[route][m.method].tags = Array.from(m.tags.values());
 
                 function isHasRequestBody(m: Method): m is HasBodyMethod {
                     return (<HasBodyMethod>m).reqBody !== undefined;

@@ -14,12 +14,19 @@ app.use(express.urlencoded({ extended: true }));
 
 const api = express.Router();
 const examples = express.Router();
+
+/**
+ * @tags examples
+ */
 app.use("/examples", examples);
 
 const fruit = express.Router();
 app.use("/fruit", fruit);
 
 // document parameters on single handlers...
+/**
+ * @tags fruit
+ */
 fruit.get("/banana",
     /**
      * @param {express.Request<{}, string>} req 
@@ -30,7 +37,7 @@ fruit.get("/banana",
 
 // ...or document a handler for concise type checking
 // note that your handler types must all agree
-// unfrotunately, I have not found a way to pass type arguments to the IRouterMatcher function itself
+// unfortunately, I have not found a way to pass type arguments to the IRouterMatcher function itself
 api.post("/person",
     /** @type {express.RequestHandler<{}, { name: string, age: number }, {}>} */
     (req, res) => {
@@ -41,6 +48,7 @@ api.post("/person",
         res.send({ name: "joe", color: "red" });
     });
 
+/** @tags SSSSsssss...🐍 */
 api.put("/snake",
     (req, res) => {
         res.send("🐍");
@@ -118,6 +126,7 @@ api.get("/snake/:a/and/:b",
 /**
  * @description This is an endpoint that tells the user their name given their first and last name. The point of this this description is to be a very long example description.
  * @summary Tell a user their name given their first and last names.
+ * @tags person
  */
 // nullable route parameters map to optional parameters
 api.get("/my-name/:first?/:last?",
@@ -164,6 +173,9 @@ examples.get("/export-carrot", chainedCarrot);
 examples.get("/export-default-grape", exportDefaultGrape);
 
 // example using export routers
+/**
+ * @tags export-fruit
+ */
 examples.use("/export-fruit", exportFruitRouter);
 
 // example using a 'fluent' api
@@ -179,6 +191,18 @@ examples.use("/methods", express.Router()
 app.use("/api", api);
 
 const swaggerDocument = generateSwaggerDoc();
+swaggerDocument.tags = [{
+    name: "fruit",
+    description: "A collection of endpoints that return tasty snacks.",
+    externalDocs: {
+        description: "Find out more",
+        url: "https://en.wikipedia.org/wiki/Fruit"
+    }
+},
+{
+    name: "examples",
+    description: "A collection of example endpoints."
+}];
 
 app.use('/api-docs', swaggerUi.serve, swaggerUi.setup(swaggerDocument));
 app.use(express.static("swagger"))
