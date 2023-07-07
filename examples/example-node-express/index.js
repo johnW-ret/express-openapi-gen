@@ -16,6 +16,12 @@ const api = express.Router();
 const examples = express.Router();
 
 /**
+ * @summary This is a demonstration of a router with authentication middleware. It does not actually authenticate anything.
+ * @tags private
+ */
+app.use("/private", /** authMiddleware, */express.Router().use("/examples", examples));
+
+/**
  * @tags examples
  */
 app.use("/examples", examples);
@@ -38,6 +44,7 @@ fruit.get("/banana",
 // ...or document a handler for concise type checking
 // note that your handler types must all agree
 // unfortunately, I have not found a way to pass type arguments to the IRouterMatcher function itself
+/** @tags person */
 api.post("/person",
     /** @type {express.RequestHandler<{}, { name: string, age: number }, {}>} */
     (req, res) => {
@@ -174,7 +181,7 @@ examples.get("/export-default-grape", exportDefaultGrape);
 
 // example using export routers
 /**
- * @tags export-fruit
+ * @tags export-fruit, fruit
  */
 examples.use("/export-fruit", exportFruitRouter);
 

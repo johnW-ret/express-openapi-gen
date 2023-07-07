@@ -12,8 +12,11 @@ class Metadata implements IMetadata {
     tags: Set<string> = new Set<string>();
 }
 
-interface Router extends IMetadata { node: ts.Node, route: string, routers: Router[], routes: Method[] };
-type UnconnectedRouter = { node: ts.Node, routers: Router[], routes: Method[] };
+interface Router { node: ts.Node, routerPaths: RouterPath[], routes: Method[] };
+interface BaseRouterPath extends IMetadata { router: Router };
+interface RouterPath extends BaseRouterPath { route: string };
+interface UnconnectedRouterPath extends BaseRouterPath { };
+
 type MethodKind = 'get' | 'post' | 'put' | 'delete' | 'patch' | 'options' | 'head';
 type HasBodyMethodKind = 'post' | 'put' | 'patch';
 type ParameterLocation = 'path' | 'body' | 'query';
@@ -80,22 +83,22 @@ function inferTypeArguments(node: ts.CallExpression, typeChecker: ts.TypeChecker
     return targetParams.map(p => typeMapper(signature['mapper'] as TypeMapper, p));
 }
 
-function getRouter(root: Router | UnconnectedRouter, node: ts.Node): Router | UnconnectedRouter | undefined {
+function getRouterPath(root: BaseRouterPath, node: ts.Node) {
     const stack = [root];
     let next;
 
     while ((next = stack.pop()) != null) {
-        if (next.node === node)
+        if (next.router.node === node)
             return next;
 
-        stack.push(...next.routers);
+        stack.push(...next.router.routerPaths);
     }
 };
 
-function getFirstRouterFromArray(array: Array<Router | UnconnectedRouter>, node: ts.Node) {
+function getFirstRouterPathFromArray(array: Array<BaseRouterPath>, node: ts.Node): BaseRouterPath | undefined {
     let found;
     array.find(router => {
-        found = getRouter(router, node);
+        found = getRouterPath(router, node);
     });
 
     return found;
@@ -203,8 +206,8 @@ export const generateSwaggerDoc = function (entryPoints?: string[]) {
         return spec;
     }
 
-    let express: Router | undefined;
-    let unhookedRouters: { [pos: number]: UnconnectedRouter } = {};
+    let express: RouterPath | undefined;
+    let unhookedRouterPaths: { [pos: number]: UnconnectedRouterPath } = {};
     let schema = new Set<ts.Type>();
 
     {
@@ -225,10 +228,12 @@ export const generateSwaggerDoc = function (entryPoints?: string[]) {
 
                     if (checker.typeToString(type) == "Express")
                         express = {
-                            node: getRootCallExpression(node),
+                            router: {
+                                node: getRootCallExpression(node),
+                                routerPaths: [],
+                                routes: []
+                            },
                             route: '',
-                            routers: [],
-                            routes: [],
                             tags: new Set<string>(),
                         };
                     return;
@@ -290,34 +295,46 @@ export const generateSwaggerDoc = function (entryPoints?: string[]) {
 
                     connectingRouterNode = getRootCallExpression(connectingRouterNode);
 
-                    let baseRouter = getRouter(express, baseRouterExpression)
-                        ?? getFirstRouterFromArray(Object.entries(unhookedRouters)
+                    // change this to try to evaluate for when not given a string literal
+                    const routeText = checker.typeToString(checker.getTypeAtLocation(node.arguments[0])).slice(1, -1);
+
+                    // if the router has not been hooked up yet
+                    let baseRouter = getRouterPath(express, baseRouterExpression)
+                        // try getting the base router by searching the tree    
+                        ?? getFirstRouterPathFromArray(Object.entries(unhookedRouterPaths)
                             .map(([key, unconnectedRouter]) => unconnectedRouter), baseRouterExpression)
-                        ?? (unhookedRouters[baseRouterExpression.pos] = {
-                            node: baseRouterExpression,
-                            routers: [],
-                            routes: []
-                        });
-
-                    let connectingRouter = unhookedRouters[connectingRouterNode.pos];
-
-                    if (connectingRouter) {
-                        baseRouter.routers.push({
-                            ...connectingRouter,
-                            route: checker.typeToString(checker.getTypeAtLocation(node.arguments[0]))
-                                .slice(1, -1),
+                        // if that fails, try getting the base router from the unhooked routers
+                        ?? (unhookedRouterPaths[baseRouterExpression.pos] = {
+                            router: {
+                                node: baseRouterExpression,
+                                routerPaths: [],
+                                routes: []
+                            },
                             ...metadata
                         });
-                        delete unhookedRouters[baseRouterExpression.pos];
+
+                    // try to get a router if it already exists
+                    let router = getRouterPath(express, connectingRouterNode)?.router;
+
+                    let connectingRouter = unhookedRouterPaths[connectingRouterNode.pos];
+
+                    if (connectingRouter) {
+                        baseRouter.router.routerPaths.push({
+                            ...connectingRouter,
+                            route: routeText,
+                            ...metadata
+                        });
+                        delete unhookedRouterPaths[baseRouterExpression.pos];
                         return;
                     }
 
-                    baseRouter.routers.push({
-                        node: connectingRouterNode,
-                        route: checker.typeToString(checker.getTypeAtLocation(node.arguments[0]))
-                            .slice(1, -1),
-                        routers: [],
-                        routes: [],
+                    baseRouter.router.routerPaths.push({
+                        router: router ?? {
+                            node: connectingRouterNode,
+                            routerPaths: [],
+                            routes: []
+                        },
+                        route: routeText,
                         ...metadata
                     });
                     return;
@@ -356,20 +373,28 @@ export const generateSwaggerDoc = function (entryPoints?: string[]) {
                 });
 
                 // if the router has not been hooked up yet
-                let router: Router | UnconnectedRouter | undefined = getRouter(express, baseRouterExpression)
-                    ?? getFirstRouterFromArray(Object.entries(unhookedRouters)
-                        .map(([key, unconnectedRouter]) => unconnectedRouter), baseRouterExpression);
+                let routerPath: RouterPath | UnconnectedRouterPath | undefined =
+                    // try getting the base router by searching the tree    
+                    getRouterPath(express, baseRouterExpression)
+                    // if that fails, try getting the base router from the unhooked routers
+                    ?? getFirstRouterPathFromArray(Object.entries(unhookedRouterPaths)
+                        .map(([key, unconnectedRouterPath]) => unconnectedRouterPath), baseRouterExpression);
 
-                if (!router) {
-                    let unhookedRouter = unhookedRouters[baseRouterExpression.pos];
+                if (!routerPath) {
+                    let unhookedRouter = unhookedRouterPaths[baseRouterExpression.pos];
 
                     if (unhookedRouter !== undefined) {
-                        router = unhookedRouter;
+                        routerPath = unhookedRouter;
                     } else {
-                        router = unhookedRouters[baseRouterExpression.pos] = {
-                            node: baseRouterExpression,
-                            routers: [],
-                            routes: []
+                        routerPath = unhookedRouterPaths[baseRouterExpression.pos] = {
+                            router:
+                                getRouterPath(express, baseRouterExpression)?.router
+                                ?? {
+                                    node: baseRouterExpression,
+                                    routerPaths: [],
+                                    routes: []
+                                },
+                            tags: new Set<string>(),
                         };
                     }
                 }
@@ -387,12 +412,12 @@ export const generateSwaggerDoc = function (entryPoints?: string[]) {
                             resBody,
                             ...metadata
                         };
-                        router.routes.push(method);
+                        routerPath.router.routes.push(method);
                     case 'get':
                     case 'delete':
                     case 'options':
                     case 'head':
-                        router.routes.push({
+                        routerPath.router.routes.push({
                             method: methodType,
                             name: checker.typeToString(route)
                                 .slice(1, -1),
@@ -512,24 +537,24 @@ export const generateSwaggerDoc = function (entryPoints?: string[]) {
     }
 
     // extract methods from router tree
-    type Item = { router: Router, route: string, tags: Set<string> };
-    const stack: Item[] = [{ router: express, route: express.route, tags: new Set<string>(express.tags) }];
+    type Item = { routerPath: RouterPath, route: string, tags: Set<string> };
+    const stack: Item[] = [{ routerPath: express, route: express.route, tags: new Set<string>(express.tags) }];
     let next: Item | undefined;
 
     while ((next = stack.pop()) != undefined) {
-        next.router.routes
+        next.routerPath.router.routes
             .forEach(route => {
-                // add all the tags from the immediate parent (which recursively means its parents)
-                next?.tags.forEach(element => route.tags.add(element));
 
                 (methodsBlock[`${next!.route}${expressParamsInPathToOpenApiParamsInPath(addSlashIfNone(route.name))}`] ??= [])
-                    .push(route)
+                    .push({
+                        ...route, tags: new Set<string>([...next!.routerPath.tags, ...route.tags, ...Array.from(next!.tags.values())])//new Set<string>([...next!.tags, ...route.tags.values()])})
+                    });
             });
 
-        next.router.routers.forEach(r => stack.push({
-            router: r,
-            route: `${next!.route}${addSlashIfNone(r.route)}`,
-            tags: new Set<string>([...next!.tags, ...r.tags])
+        next.routerPath.router.routerPaths.forEach(rp => stack.push({
+            routerPath: rp,
+            route: `${next!.route}${addSlashIfNone(rp.route)}`,
+            tags: new Set<string>([...next!.tags, ...next!.routerPath.tags.values()])
         }));
     }
 
@@ -542,7 +567,7 @@ export const generateSwaggerDoc = function (entryPoints?: string[]) {
 
                 spec.paths[route][m.method].summary = m.summary;
                 spec.paths[route][m.method].description = m.description;
-                spec.paths[route][m.method].tags = Array.from(m.tags.values());
+                spec.paths[route][m.method].tags = Array.from(m.tags);
 
                 function isHasRequestBody(m: Method): m is HasBodyMethod {
                     return (<HasBodyMethod>m).reqBody !== undefined;
