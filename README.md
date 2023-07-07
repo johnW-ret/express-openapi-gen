@@ -8,9 +8,7 @@ A tool that generates an OpenAPI definition directly from your [express](https:/
 
 # Todo 📋
 - No support for query parameters (add support for query parameters)
-- No support for IRoute (Ex: `api.route("fruit").get(...)`) (add support for IRoute)
-- Only first level properties of types are added to the `schema`
-- Types referenced are not added to the definition `components/schema` and are generated for each method (auto-generate `components/schema` from involved types)
+- No support for IRoute (Ex: `api.route("/fruit").get(...)`) (add support for IRoute)
 
 ---
 
