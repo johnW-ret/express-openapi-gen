@@ -595,8 +595,8 @@ export const generateSwaggerDoc = function (entryPoints?: string[]) {
                 }
 
                 spec.paths[route][m.method]['responses'] = {
-                    "200": {
-                        "description": "success",
+                    default: {
+                        description: "success",
                         content: {
                             "application/json": {
                                 schema: typeToSchema(m.resBody)
