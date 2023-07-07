@@ -151,7 +151,7 @@ function handlerWhichSends(req, res) {
     res.send({ name: "joe", age: 5 });
 }
 
-examples.get("function-handler", handlerWhichSends);
+examples.get("/function-handler", handlerWhichSends);
 
 // example using function which generates a handler
 /**
@@ -212,6 +212,6 @@ swaggerDocument.tags = [{
 }];
 
 app.use('/api-docs', swaggerUi.serve, swaggerUi.setup(swaggerDocument));
-app.use(express.static("swagger"))
+app.use(express.static("swagger"));
 
 app.listen(80);
