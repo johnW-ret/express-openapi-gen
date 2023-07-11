@@ -471,7 +471,7 @@ export const generateSwaggerDoc = function (entryPoints?: string[]) {
         let seen: ts.Type[] = []; // for infinite cycles
 
         function rec(type: ts.Type): any {
-            const typeName = checker.typeToString(type);
+            let typeName = checker.typeToString(type);
 
             if (typeName == 'string' || typeName == 'number' || typeName == 'boolean') {
                 return {
@@ -505,8 +505,11 @@ export const generateSwaggerDoc = function (entryPoints?: string[]) {
                 };
             }
             else {
+                // we don't handle intersections very well, but this is literally better than anything I have done so far
+                typeName = typeName.split(' & ').find(name => !name.includes(' ') && !name.includes('{') && !name.includes('}')) ?? typeName;
+
                 // if it's not a known type then just get the direct schema and don't add it to schemas
-                if (!type.aliasSymbol) {
+                if (typeName.includes(' ') || typeName.includes('{') || typeName.includes('}')) {
                     return {
                         type: "object",
                         properties: type.getApparentProperties()
