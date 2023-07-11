@@ -9,6 +9,7 @@ A tool that generates an OpenAPI definition directly from your [express](https:/
 # Todo 📋
 - No support for query parameters (add support for query parameters)
 - No support for IRoute (Ex: `api.route("/fruit").get(...)`) (add support for IRoute)
+- `Date` objects default to `date-time` format (add support for separate formats such as `date`)
 
 ---
 

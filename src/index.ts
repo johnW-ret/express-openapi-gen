@@ -478,6 +478,12 @@ export const generateSwaggerDoc = function (entryPoints?: string[]) {
                     type: typeName
                 };
             }
+            else if (typeName === 'Date') {
+                return {
+                    type: "string",
+                    format: "date-time"
+                };
+            }
             else if (typeName == 'any') {
                 return {
                     type: "object"
