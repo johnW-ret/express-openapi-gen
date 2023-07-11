@@ -5,6 +5,7 @@ import { generateSwaggerDoc } from 'express-openapi-gen';
 import swaggerUi from 'swagger-ui-express';
 import { fruitRouter as exportFruitRouter, chainedCarrot } from './fruit.js';
 import exportDefaultGrape from './exportDefaultGrape.js';
+import { Basket, Handle } from './models.js';
 
 const app = express();
 
@@ -195,9 +196,17 @@ examples.use("/methods", express.Router()
     .head("/head", (req, res) => { res.send("🙂") })
 );
 
+examples.get("/handle",
+    /** @type {express.RequestHandler<{}, Handle>} */
+    (req, res) => { });
+
+examples.get("/basket",
+    /** @type {express.RequestHandler<{}, Basket>} */
+    (req, res) => { });
+
 app.use("/api", api);
 
-const swaggerDocument = generateSwaggerDoc();
+const swaggerDocument = generateSwaggerDoc({ keysToIgnore: ["sequelize", "_model", "_attributes", "_creationAttributes", "dataValues", "isNewRecord", "get", "set", "setAttributes", "changed", "previous", "update", "toJSON", "addHook"] });
 swaggerDocument.tags = [{
     name: "fruit",
     description: "A collection of endpoints that return tasty snacks.",
