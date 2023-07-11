@@ -1,6 +1,6 @@
 {
   "name": "express-openapi-gen",
-  "version": "0.0.8",
+  "version": "0.0.9",
   "description": "A syntax analyzer that will attempt to generate an OpenAPI definition from your express API code.",
   "type": "module",
   "main": "index.js",
