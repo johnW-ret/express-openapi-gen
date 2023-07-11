@@ -510,6 +510,9 @@ export const generateSwaggerDoc = function (entryPoints?: string[]) {
                     return {
                         type: "object",
                         properties: type.getApparentProperties()
+                            .filter(s => s.name != '__type')
+                            .filter(s => !checker.typeToString(checker.getTypeOfSymbol(s)).includes('Function')
+                                && !checker.typeToString(checker.getTypeOfSymbol(s)).includes('=>'))
                             .reduce((a, v) => ({ ...a, [v.name]: rec(checker.getTypeOfSymbol(v)) }), {})
                     };
                 }
@@ -528,6 +531,9 @@ export const generateSwaggerDoc = function (entryPoints?: string[]) {
                         spec.components.schemas[typeName] = {
                             type: "object",
                             properties: type.getApparentProperties()
+                                .filter(s => s.name != '__type')
+                                .filter(s => !checker.typeToString(checker.getTypeOfSymbol(s)).includes('Function')
+                                    && !checker.typeToString(checker.getTypeOfSymbol(s)).includes('=>'))
                                 .reduce((a, v) => ({ ...a, [v.name]: rec(checker.getTypeOfSymbol(v)) }), {})
                         };
                     }
