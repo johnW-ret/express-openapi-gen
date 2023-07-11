@@ -175,11 +175,13 @@ function isNullableType(type: ts.Type): boolean {
     );
 }
 
-export const generateSwaggerDoc = function (entryPoints?: string[]) {
-    entryPoints ??= [process.argv[1]];
+export const generateSwaggerDoc = function (options?: {entryPoints?: string[], keysToIgnore?: string[]}) {
+    options ??= {};
+    options.entryPoints ??= [process.argv[1]];
+    const _keysToIgnore = options.keysToIgnore ??= [];
 
     const program = ts.createProgram({
-        rootNames: entryPoints,
+        rootNames: options.entryPoints,
         options:
         {
             moduleResolution: ts.ModuleResolutionKind.NodeNext,
@@ -202,7 +204,7 @@ export const generateSwaggerDoc = function (entryPoints?: string[]) {
         .map((sf) => { return { node: sf, depth: "" } });
 
     if (nodes.length === 0) {
-        console.error(`express-openapi-gen: No source files could not be loaded from ${entryPoints}`);
+        console.error(`express-openapi-gen: No source files could not be loaded from ${options.entryPoints}`);
         return spec;
     }
 
@@ -438,7 +440,7 @@ export const generateSwaggerDoc = function (entryPoints?: string[]) {
     }
 
     if (!express) {
-        console.error(`express-openapi-gen: Express could not be found in source file in ${entryPoints}`);
+        console.error(`express-openapi-gen: Express could not be found in source file in ${options.entryPoints}`);
         return spec;
     }
 
@@ -513,7 +515,8 @@ export const generateSwaggerDoc = function (entryPoints?: string[]) {
                     return {
                         type: "object",
                         properties: type.getApparentProperties()
-                            .filter(s => s.name != '__type')
+                            .filter(s => _keysToIgnore.includes(s.name) == false)
+                            .filter(s => s.name?.[0] != '_')
                             .filter(s => !checker.typeToString(checker.getTypeOfSymbol(s)).includes('Function')
                                 && !checker.typeToString(checker.getTypeOfSymbol(s)).includes('=>'))
                             .reduce((a, v) => ({ ...a, [v.name]: rec(checker.getTypeOfSymbol(v)) }), {})
@@ -534,7 +537,8 @@ export const generateSwaggerDoc = function (entryPoints?: string[]) {
                         spec.components.schemas[typeName] = {
                             type: "object",
                             properties: type.getApparentProperties()
-                                .filter(s => s.name != '__type')
+                                .filter(s => _keysToIgnore.includes(s.name) == false)
+                                .filter(s => s.name?.[0] != '_')
                                 .filter(s => !checker.typeToString(checker.getTypeOfSymbol(s)).includes('Function')
                                     && !checker.typeToString(checker.getTypeOfSymbol(s)).includes('=>'))
                                 .reduce((a, v) => ({ ...a, [v.name]: rec(checker.getTypeOfSymbol(v)) }), {})
